@@ -55,12 +55,8 @@ public class MainWindowViewModel : ViewModelBase
     public ICommand SelectionChangedCommand { get; private set; }
     public ICommand TextChangedCommand { get; private set; }
     public ICommand PreviewKeyDownCommand { get; private set; }
-    public ICommand ScrollCommand { get; private set; }
-    public ICommand ScrollBarDragCommand { get; private set; }
     public ICommand OpenRecentCommand { get; private set; }
-    public ICommand MouseWheelCommand { get; private set; }
     public ObservableCollection<ThemeInfo> AvailableThemes => themeService.AvailableThemes;
-    readonly ScrollBarBehavior scrollBarBehavior = new();
 
     public MainWindowViewModel(IWindowService windowService, IDocumentService documentService, IThemeService themeService, IFontService fontService, MenuItem menuItemFileDropdown, TextBox textBox, Action SaveSettings)
     {
@@ -109,10 +105,7 @@ public class MainWindowViewModel : ViewModelBase
         SelectionChangedCommand = new RelayCommand<RoutedEventArgs>(HandleSelectionChanged);
         TextChangedCommand = new RelayCommand<TextChangedEventArgs>(HandleTextChanged);
         PreviewKeyDownCommand = new RelayCommand<KeyEventArgs>(HandlePreviewKeyDown);
-        ScrollCommand = new RelayCommand<MouseWheelEventArgs>(HandleScroll);
-        ScrollBarDragCommand = new RelayCommand<MouseButtonEventArgs>(HandleScrollBarDrag);
         OpenRecentCommand = new RelayCommand<RoutedEventArgs>(HandleOpenRecent);
-        MouseWheelCommand = new RelayCommand<MouseWheelEventArgs>(HandleMouseWheel);
     }
 
     public string CurrentThemeName
@@ -469,10 +462,6 @@ public class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public void HandleScrollBarDrag(Rectangle rectangle, TextBox textBox, MouseButtonEventArgs e) => scrollBarBehavior.StartDrag(rectangle, textBox, e);
-
-    public void HandleMouseScroll(object sender, MouseWheelEventArgs e) => scrollManager.HandleMouseWheel(sender, e);
-
     void HandleOpenRecent(RoutedEventArgs e)
     {
         if(e.OriginalSource is MenuItem menuItem && menuItem.Header is string path && path != "...")
@@ -498,20 +487,6 @@ public class MainWindowViewModel : ViewModelBase
             scrollManager.HandleNavigationKey(e.Key, Keyboard.Modifiers);
     }
 
-    void HandleScroll(MouseWheelEventArgs e) => scrollManager.HandleMouseWheel(e.Source, e);
-
-    void HandleScrollBarDrag(MouseButtonEventArgs e)
-    {
-        if(e.Source is Rectangle rectangle && e.LeftButton == MouseButtonState.Pressed)
-            scrollBarBehavior.StartDrag(rectangle, textBox, e);
-    }
-
-    void HandleMouseWheel(MouseWheelEventArgs e)
-    {
-        if(e.Source is Grid grid && grid.TemplatedParent is ScrollViewer scrollViewer)
-            scrollManager?.HandleMouseWheel(scrollViewer, e);
-    }
-
     public void Cleanup()
     {
         (MouseMoveCommand as IDisposable)?.Dispose();
@@ -519,8 +494,6 @@ public class MainWindowViewModel : ViewModelBase
         (SelectionChangedCommand as IDisposable)?.Dispose();
         (TextChangedCommand as IDisposable)?.Dispose();
         (PreviewKeyDownCommand as IDisposable)?.Dispose();
-        (ScrollCommand as IDisposable)?.Dispose();
-        (ScrollBarDragCommand as IDisposable)?.Dispose();
         (NewCommand as IDisposable)?.Dispose();
         (OpenCommand as IDisposable)?.Dispose();
         (SaveCommand as IDisposable)?.Dispose();

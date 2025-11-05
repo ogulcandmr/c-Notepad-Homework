@@ -12,7 +12,6 @@ public class ScrollManager
     ScrollViewer _scrollViewer;
     ScrollBar _verticalScrollBar;
     ScrollBar _horizontalScrollBar;
-    bool isScrollbarDragging;
     readonly TextBox _textBox;
     const double PADDING = 20;
     const double SCROLL_ZONE_PERCENTAGE  = 0.20;
@@ -31,13 +30,14 @@ public class ScrollManager
     {
         _textBox = textBox;
         _textBox.Loaded += TextBox_Loaded;
+        _textBox.PreviewMouseWheel += HandleMouseWheel;
         InitializeTimer();
         InitializeMouseEvents();
     }
 
     void ScrollTimer_Tick(object sender, EventArgs e)
     {
-        if(!_isSelecting || isScrollbarDragging || _scrollViewer == null) return;
+        if(!_isSelecting || _scrollViewer == null) return;
 
         double speed = (double)_scrollTimer.Tag;
 
@@ -45,9 +45,6 @@ public class ScrollManager
         newOffset = Math.Max(0, Math.Min(newOffset, _scrollViewer.ScrollableHeight));
 
         _scrollViewer.ScrollToVerticalOffset(newOffset);
-
-        if(_verticalScrollBar != null)
-            _verticalScrollBar.Value = newOffset;
     }
 
     void RightClickScrollFixTimer_Tick(object sender, EventArgs e)
@@ -57,15 +54,13 @@ public class ScrollManager
             _rightClickScrollFixTimer?.Stop();
             return;
         }
-        
+
         double currentPosition = _scrollViewer.VerticalOffset;
         if(Math.Abs(currentPosition - scrollPositionBeforeRightClick) > 0.1)
         {
             // Scroll position changed unexpectedly during right-click - restore it
             _scrollViewer.ScrollToVerticalOffset(scrollPositionBeforeRightClick);
-            if(_verticalScrollBar != null)
-                _verticalScrollBar.Value = scrollPositionBeforeRightClick;
-            
+
             // Stop monitoring now that we've corrected it
             expectingRightClickScroll = false;
             _rightClickScrollFixTimer?.Stop();
@@ -104,46 +99,38 @@ public class ScrollManager
 
     void ScrollToCaretPosition(bool ensureVisible = false)
     {
-        if(_scrollViewer == null || isScrollbarDragging || isAutoScrolling || _isSelecting || expectingRightClickScroll) return;
-        
+        if(_scrollViewer == null || isAutoScrolling || _isSelecting || expectingRightClickScroll) return;
+
         try
         {
             var rect = _textBox.GetRectFromCharacterIndex(_textBox.CaretIndex);
-            
+
             // If caret is outside the visible area (either above or below), scroll to it
-            if(rect.Top < _scrollViewer.VerticalOffset || 
-               rect.Bottom > _scrollViewer.VerticalOffset + _scrollViewer.ViewportHeight)
+            if(rect.Top < 0 ||
+               rect.Bottom > _scrollViewer.ViewportHeight)
             {
                 double offset;
-                
-                if(rect.Top < _scrollViewer.VerticalOffset)
-                    offset = rect.Top - PADDING; // Scroll up to show caret with padding
+
+                if(rect.Top < 0)
+                    offset = _scrollViewer.VerticalOffset + rect.Top - PADDING; // Scroll up to show caret with padding
                 else
-                    offset = rect.Bottom - _scrollViewer.ViewportHeight + PADDING; // Scroll down
-                    
-                offset = Math.Max(0, Math.Min(offset, _scrollViewer.ScrollableHeight));
+                    offset = _scrollViewer.VerticalOffset + rect.Bottom - _scrollViewer.ViewportHeight + PADDING; // Scroll down
+
                 _scrollViewer.ScrollToVerticalOffset(offset);
-                
-                if(_verticalScrollBar != null)
-                    _verticalScrollBar.Value = offset;
             }
-            
+
             // Also check horizontal scrolling
-            if(rect.Left < _scrollViewer.HorizontalOffset || 
-               rect.Right > _scrollViewer.HorizontalOffset + _scrollViewer.ViewportWidth)
+            if(rect.Left < 0 ||
+               rect.Right > _scrollViewer.ViewportWidth)
             {
                 double offset;
-                
-                if(rect.Left < _scrollViewer.HorizontalOffset)
-                    offset = rect.Left - PADDING;
+
+                if(rect.Left < 0)
+                    offset = _scrollViewer.HorizontalOffset + rect.Left - PADDING;
                 else
-                    offset = rect.Right - _scrollViewer.ViewportWidth + PADDING;
-                    
-                offset = Math.Max(0, Math.Min(offset, _scrollViewer.ScrollableWidth));
+                    offset = _scrollViewer.HorizontalOffset + rect.Right - _scrollViewer.ViewportWidth + PADDING;
+
                 _scrollViewer.ScrollToHorizontalOffset(offset);
-                
-                if(_horizontalScrollBar != null)
-                    _horizontalScrollBar.Value = offset;
             }
         }
         catch(Exception)
@@ -159,16 +146,16 @@ public class ScrollManager
             // Store scroll position before right-click
             scrollPositionBeforeRightClick = _scrollViewer.VerticalOffset;
             expectingRightClickScroll = true;
-            
+
             // Start monitoring for scroll changes due to right-click
             if(_rightClickScrollFixTimer == null)
             {
                 _rightClickScrollFixTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
                 _rightClickScrollFixTimer.Tick += RightClickScrollFixTimer_Tick;
             }
-            
+
             _rightClickScrollFixTimer.Start();
-            
+
             // Schedule a cleanup after a reasonable timeout for context menu operations
             Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
             {
@@ -177,7 +164,7 @@ public class ScrollManager
                 _rightClickScrollFixTimer?.Stop();
             }));
         }
-        
+
         isMouseDown = true;
         isAutoScrolling = false;
     }
@@ -190,7 +177,7 @@ public class ScrollManager
             expectingRightClickScroll = false;
             _rightClickScrollFixTimer?.Stop();
         }
-        
+
         isMouseDown = false;
         isAutoScrolling = false;
         StopScrolling();
@@ -234,45 +221,15 @@ public class ScrollManager
     {
         _scrollViewer = VisualTreeUtil.FindVisualChildren<ScrollViewer>(_textBox).FirstOrDefault();
         if(_scrollViewer == null) return;
-        
-        var grid = _scrollViewer.Template.FindName("PART_Root", _scrollViewer) as Grid;
 
-        if(grid != null)
-        {
-            _verticalScrollBar = grid.FindName("PART_VerticalScrollBar") as ScrollBar;
-            _horizontalScrollBar = grid.FindName("PART_HorizontalScrollBar") as ScrollBar;
-
-            if(_verticalScrollBar != null)
-            {
-                _verticalScrollBar.PreviewMouseDown += (s, args) => isScrollbarDragging = true;
-                _verticalScrollBar.PreviewMouseUp += (s, args) => isScrollbarDragging = false;
-                _verticalScrollBar.ValueChanged += (s, args) => 
-                {
-                    if(isScrollbarDragging && _scrollViewer != null)
-                        _scrollViewer.ScrollToVerticalOffset(args.NewValue);
-                    else if(expectingRightClickScroll && Math.Abs(args.NewValue - scrollPositionBeforeRightClick) > 0.1)
-                    {
-                        // This is a right-click induced scroll change - restore the position
-                        _scrollViewer.ScrollToVerticalOffset(scrollPositionBeforeRightClick);
-                        _verticalScrollBar.Value = scrollPositionBeforeRightClick;
-                    }
-                };
-            }
-
-            if(_horizontalScrollBar != null)
-            {
-                _horizontalScrollBar.PreviewMouseDown += (s, args) => isScrollbarDragging = true;
-                _horizontalScrollBar.PreviewMouseUp += (s, args) => isScrollbarDragging = false;
-                _horizontalScrollBar.ValueChanged += (s, args) => 
-                {
-                    if(isScrollbarDragging && _scrollViewer != null)
-                        _scrollViewer.ScrollToHorizontalOffset(args.NewValue);
-                };
-            }
-        }
+        // We no longer need to manually handle scrollbar events as the default
+        // template and bindings will take care of it. We just need the reference
+        // for programmatic scrolling.
+        _verticalScrollBar = _scrollViewer.Template.FindName("PART_VerticalScrollBar", _scrollViewer) as ScrollBar;
+        _horizontalScrollBar = _scrollViewer.Template.FindName("PART_HorizontalScrollBar", _scrollViewer) as ScrollBar;
     }
 
-    public void HandleNavigationKey(Key key, ModifierKeys modifiers) => 
+    public void HandleNavigationKey(Key key, ModifierKeys modifiers) =>
         Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
         {
             ScrollToCaretPosition((modifiers & ModifierKeys.Control) == ModifierKeys.Control);
@@ -282,35 +239,18 @@ public class ScrollManager
 
     public void HandleSelectionChanged() => ScrollToCaretPosition(false);
 
-    void UpdateScrollBars()
-    {
-        if(_verticalScrollBar != null)
-            _verticalScrollBar.Value = _scrollViewer.VerticalOffset;
-            
-        if(_horizontalScrollBar != null)
-            _horizontalScrollBar.Value = _scrollViewer.HorizontalOffset;
-    }
-
     public void HandleMouseWheel(object sender, MouseWheelEventArgs e)
     {
         if(_scrollViewer == null) return;
-        
-        if(sender is TextBox || sender is ScrollViewer)
-        {
-            // With these delta values, the scroll speed should be smoother
-            double delta = e.Delta / 120.0;
-            double newOffset = _scrollViewer.VerticalOffset - delta;
-            
-            // Ensure offset stays within bounds
-            newOffset = Math.Max(0, Math.Min(newOffset, _scrollViewer.ScrollableHeight));
-            
-            // Apply scroll both to ScrollViewer and ScrollBar
-            _scrollViewer.ScrollToVerticalOffset(newOffset);
-            
-            if(_verticalScrollBar != null)
-                _verticalScrollBar.Value = newOffset;
-                
-            e.Handled = true;
-        }
+
+        // A standard mouse wheel delta is 120. We can simulate the default 
+        // scroll amount of 3 lines for a smoother, more standard feel.
+        double lineHeight = _textBox.FontSize * _textBox.FontFamily.LineSpacing;
+        double scrollAmount = (double)e.Delta / 120.0 * (3 * lineHeight);
+
+        double newOffset = _scrollViewer.VerticalOffset - scrollAmount;
+
+        _scrollViewer.ScrollToVerticalOffset(newOffset);
+        e.Handled = true;
     }
 }
