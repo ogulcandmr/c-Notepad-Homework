@@ -1,152 +1,100 @@
 ﻿using System.Windows;
-using System.Windows.Controls;
+using ICSharpCode.AvalonEdit;
 using NotepadEx.MVVM.View.UserControls;
 using NotepadEx.MVVM.ViewModels;
 
-namespace NotepadEx.MVVM.View;
-
-public partial class FindAndReplaceWindow : Window
+namespace NotepadEx.MVVM.View
 {
-    TextBox targetTextBox;
-    int currentPosition = 0;
-
-    CustomTitleBarViewModel titleBarViewModel;
-    public CustomTitleBarViewModel TitleBarViewModel => titleBarViewModel;
-
-    public FindAndReplaceWindow(TextBox textBox)
+    public partial class FindAndReplaceWindow : Window
     {
-        InitializeComponent();
-        DataContext = this;
-        titleBarViewModel = CustomTitleBar.InitializeTitleBar(this, "Find and Replace", showMinimize: true, showMaximize: false, isResizable: false);
+        private readonly TextEditor targetEditor;
+        private int lastSearchOffset = -1;
 
-        targetTextBox = textBox;
-    }
+        public CustomTitleBarViewModel TitleBarViewModel { get; }
 
-    void FindNextButton_Click(object sender, RoutedEventArgs e) => Find(true);
-
-    void FindPreviousButton_Click(object sender, RoutedEventArgs e) => Find(false);
-
-    void Find(bool forward)
-    {
-        string searchText = FindTextBox.Text;
-        string content = targetTextBox.Text;
-
-        if(string.IsNullOrEmpty(searchText) || string.IsNullOrEmpty(content))
-            return;
-
-        StringComparison comparison = MatchCaseCheckBox.IsChecked == true ?
-                StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
-
-        int startIndex = forward ?
-                currentPosition + (currentPosition < content.Length ? 1 : 0) :
-                currentPosition - 1;
-
-        if(startIndex < 0) startIndex = content.Length - 1;
-        if(startIndex >= content.Length) startIndex = 0;
-
-        int foundIndex = forward ?
-                content.IndexOf(searchText, startIndex, comparison) :
-                content.LastIndexOf(searchText, startIndex, comparison);
-
-        // Wrap around if not found
-        if(foundIndex == -1)
+        public FindAndReplaceWindow(TextEditor editor)
         {
-            foundIndex = forward ?
-                content.IndexOf(searchText, 0, comparison) :
-                content.LastIndexOf(searchText, content.Length - 1, comparison);
+            InitializeComponent();
+            DataContext = this;
+            TitleBarViewModel = CustomTitleBar.InitializeTitleBar(this, "Find and Replace", showMinimize: true, showMaximize: false, isResizable: false);
+            targetEditor = editor;
         }
 
-        if(foundIndex != -1)
-        {
-            targetTextBox.Focus();
-            targetTextBox.Select(foundIndex, searchText.Length);
-            targetTextBox.ScrollToLine(GetLineIndexFromPosition(targetTextBox, foundIndex));
-            currentPosition = foundIndex;
-        }
-        else
-        {
-            MessageBox.Show($"Cannot find \"{searchText}\"", "Find and Replace",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-    }
+        private void FindNextButton_Click(object sender, RoutedEventArgs e) => Find(true);
+        private void FindPreviousButton_Click(object sender, RoutedEventArgs e) => Find(false);
 
-    void ReplaceButton_Click(object sender, RoutedEventArgs e)
-    {
-        if(targetTextBox.SelectionLength > 0 &&
-            targetTextBox.SelectedText.Equals(FindTextBox.Text,
-                MatchCaseCheckBox.IsChecked == true ?
-                    StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
+        private void Find(bool forward)
         {
-            int currentPos = targetTextBox.SelectionStart;
-            targetTextBox.SelectedText = ReplaceTextBox.Text;
-            currentPosition = currentPos;
-            Find(true);
-        }
-        else
-        {
-            Find(true);
-        }
-    }
+            string searchText = FindTextBox.Text;
+            if(string.IsNullOrEmpty(searchText)) return;
 
-    void ReplaceAllButton_Click(object sender, RoutedEventArgs e)
-    {
-        string searchText = FindTextBox.Text;
-        string replaceText = ReplaceTextBox.Text;
-        StringComparison comparison = MatchCaseCheckBox.IsChecked == true ?
-                StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            int startOffset = forward ? targetEditor.SelectionStart + targetEditor.SelectionLength : targetEditor.SelectionStart;
 
-        if(string.IsNullOrEmpty(searchText))
-            return;
+            var comparison = MatchCaseCheckBox.IsChecked == true ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
 
-        string content = targetTextBox.Text;
-        string newContent = content;
-        int replacements = 0;
-
-        if(MatchCaseCheckBox.IsChecked == true)
-        {
-            while(newContent.IndexOf(searchText, comparison) != -1)
+            int foundIndex = -1;
+            if(forward)
             {
-                newContent = newContent.Replace(searchText, replaceText);
-                replacements++;
+                foundIndex = targetEditor.Document.Text.IndexOf(searchText, startOffset, comparison);
+                // Wrap around
+                if(foundIndex == -1)
+                    foundIndex = targetEditor.Document.Text.IndexOf(searchText, 0, comparison);
             }
-        }
-        else
-        {
-            int index = 0;
-            while((index = newContent.IndexOf(searchText, index, comparison)) != -1)
+            else
             {
-                newContent = newContent.Remove(index, searchText.Length)
-                                     .Insert(index, replaceText);
-                index += replaceText.Length;
-                replacements++;
+                foundIndex = targetEditor.Document.Text.LastIndexOf(searchText, startOffset - 1, comparison);
+                // Wrap around
+                if(foundIndex == -1)
+                    foundIndex = targetEditor.Document.Text.LastIndexOf(searchText, targetEditor.Document.TextLength, comparison);
+            }
+
+            if(foundIndex != -1)
+            {
+                targetEditor.Focus();
+                targetEditor.Select(foundIndex, searchText.Length);
+                var loc = targetEditor.Document.GetLocation(foundIndex);
+                targetEditor.ScrollTo(loc.Line, loc.Column);
+                lastSearchOffset = foundIndex;
+            }
+            else
+            {
+                MessageBox.Show($"Cannot find \"{searchText}\"", "Find and Replace", MessageBoxButton.OK, MessageBoxImage.Information);
+                lastSearchOffset = -1;
             }
         }
 
-        if(replacements > 0)
+        private void ReplaceButton_Click(object sender, RoutedEventArgs e)
         {
-            targetTextBox.Text = newContent;
-            MessageBox.Show($"Replaced {replacements} occurrence(s)", "Find and Replace",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-    }
+            string searchText = FindTextBox.Text;
+            var comparison = MatchCaseCheckBox.IsChecked == true ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
 
-    int GetLineIndexFromPosition(TextBox textBox, int position)
-    {
-        int lineIndex = 0;
-        int currentPos = 0;
-
-        string[] lines = textBox.Text.Split(new[] { Environment.NewLine },
-                StringSplitOptions.None);
-
-        foreach(string line in lines)
-        {
-            if(currentPos + line.Length >= position)
-                return lineIndex;
-
-            currentPos += line.Length + Environment.NewLine.Length;
-            lineIndex++;
+            if(targetEditor.SelectionLength > 0 && targetEditor.SelectedText.Equals(searchText, comparison))
+            {
+                targetEditor.Document.Replace(targetEditor.SelectionStart, targetEditor.SelectionLength, ReplaceTextBox.Text);
+            }
+            Find(true);
         }
 
-        return lineIndex;
+        private void ReplaceAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            string searchText = FindTextBox.Text;
+            string replaceText = ReplaceTextBox.Text;
+            if(string.IsNullOrEmpty(searchText)) return;
+
+            var comparison = MatchCaseCheckBox.IsChecked == true ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            int offset = 0;
+            int replacements = 0;
+
+            targetEditor.Document.BeginUpdate();
+            while((offset = targetEditor.Document.Text.IndexOf(searchText, offset, comparison)) != -1)
+            {
+                targetEditor.Document.Replace(offset, searchText.Length, replaceText);
+                offset += replaceText.Length;
+                replacements++;
+            }
+            targetEditor.Document.EndUpdate();
+
+            MessageBox.Show($"Replaced {replacements} occurrence(s).", "Find and Replace", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
     }
 }

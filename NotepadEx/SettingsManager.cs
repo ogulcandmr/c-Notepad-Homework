@@ -1,27 +1,30 @@
 ﻿using System.Windows;
-using System.Windows.Controls;
+using ICSharpCode.AvalonEdit;
 using NotepadEx.Properties;
 using NotepadEx.Util;
 
-namespace NotepadEx;
-public static class SettingsManager
+namespace NotepadEx
 {
-    public static void SaveSettings(Window window, TextBox txtEditor, string themeName)
+    public static class SettingsManager
     {
-        Settings.Default.RecentFiles = string.Join(",", RecentFileManager.RecentFiles);
-        Settings.Default.WindowSizeX = window.Width;
-        Settings.Default.WindowSizeY = window.Height;
-        Settings.Default.TextWrapping = txtEditor.TextWrapping == TextWrapping.Wrap;
-        //Settings.Default.MenuBarAutoHide;
-        //Settings.Default.InfoBarAutoHide;
-        //Settings.Default.ThemeName = themeName;
-        Settings.Default.FontSize = txtEditor.FontSize;
-        Settings.Default.FontFamily = txtEditor.FontFamily.Source;
-        Settings.Default.FontWeight = txtEditor.FontWeight.ToString();
-        Settings.Default.FontStyle = txtEditor.FontStyle.ToString();
-        Settings.Default.Underline = txtEditor.TextDecorations.Any(td => td.Location == TextDecorationLocation.Underline);
-        Settings.Default.Strikethrough = txtEditor.TextDecorations.Any(td => td.Location == TextDecorationLocation.Strikethrough);
+        public static void SaveSettings(Window window, TextEditor textEditor, string themeName)
+        {
+            Settings.Default.RecentFiles = string.Join(",", RecentFileManager.RecentFiles);
+            Settings.Default.WindowSizeX = window.Width;
+            Settings.Default.WindowSizeY = window.Height;
+            Settings.Default.TextWrapping = textEditor.WordWrap;
+            // Settings.Default.ThemeName = themeName; // This is already handled in ThemeService
+            Settings.Default.FontSize = textEditor.FontSize;
+            Settings.Default.FontFamily = textEditor.FontFamily.Source;
+            Settings.Default.FontWeight = textEditor.FontWeight.ToString();
+            Settings.Default.FontStyle = textEditor.FontStyle.ToString();
 
-        Settings.Default.Save();
+            // Note: Underline and Strikethrough are more complex in AvalonEdit and
+            // require a custom IVisualLineTransformer. This functionality is omitted for now.
+            Settings.Default.Underline = false;
+            Settings.Default.Strikethrough = false;
+
+            Settings.Default.Save();
+        }
     }
 }

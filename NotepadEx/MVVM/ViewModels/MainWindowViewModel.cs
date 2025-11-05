@@ -1,129 +1,131 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using NotepadEx.MVVM.Behaviors;
+using ICSharpCode.AvalonEdit;
 using NotepadEx.MVVM.Models;
 using NotepadEx.MVVM.View;
 using NotepadEx.Properties;
 using NotepadEx.Services.Interfaces;
 using NotepadEx.Util;
 using Point = System.Windows.Point;
-using Rectangle = System.Windows.Shapes.Rectangle;
-namespace NotepadEx.MVVM.ViewModels;
 
-public class MainWindowViewModel : ViewModelBase
+namespace NotepadEx.MVVM.ViewModels
 {
-    readonly Document document;
-    readonly IWindowService windowService;
-    readonly IDocumentService documentService;
-    readonly WindowState prevWindowState;
-    readonly IThemeService themeService;
-    readonly IFontService fontService;
-    FindAndReplaceWindow findAndReplaceWindow;
-    readonly TextBox textBox;
-    readonly MenuItem menuItemFileDropdown;
-    readonly Action SaveSettings;
-    string statusText;
-    double menuBarHeight;
-    double infoBarHeight;
-    bool isMenuBarEnabled;
-    readonly ScrollManager scrollManager;
-
-    public ICommand NewCommand { get; private set; }
-    public ICommand OpenCommand { get; private set; }
-    public ICommand SaveCommand { get; private set; }
-    public ICommand SaveAsCommand { get; private set; }
-    public ICommand PrintCommand { get; private set; }
-    public ICommand ExitCommand { get; private set; }
-    public ICommand ToggleWordWrapCommand { get; private set; }
-    public ICommand ToggleMenuBarCommand { get; private set; }
-    public ICommand ToggleInfoBarCommand { get; private set; }
-    public ICommand CopyCommand { get; private set; }
-    public ICommand CutCommand { get; private set; }
-    public ICommand PasteCommand { get; private set; }
-    public ICommand ChangeThemeCommand { get; private set; }
-    public ICommand OpenThemeEditorCommand { get; private set; }
-    public ICommand OpenFontEditorCommand { get; private set; }
-    public ICommand OpenFindReplaceCommand { get; private set; }
-    public ICommand InsertTabCommand { get; private set; }
-    public ICommand OpenFileLocationCommand { get; private set; }
-    public ICommand MouseMoveCommand { get; private set; }
-    public ICommand ResizeCommand { get; private set; }
-    public ICommand SelectionChangedCommand { get; private set; }
-    public ICommand TextChangedCommand { get; private set; }
-    public ICommand PreviewKeyDownCommand { get; private set; }
-    public ICommand OpenRecentCommand { get; private set; }
-    public ObservableCollection<ThemeInfo> AvailableThemes => themeService.AvailableThemes;
-
-    public MainWindowViewModel(IWindowService windowService, IDocumentService documentService, IThemeService themeService, IFontService fontService, MenuItem menuItemFileDropdown, TextBox textBox, Action SaveSettings)
+    public class MainWindowViewModel : ViewModelBase
     {
-        this.windowService = windowService;
-        this.documentService = documentService;
-        this.themeService = themeService;
-        this.fontService = fontService;
-        this.menuItemFileDropdown = menuItemFileDropdown;
-        this.textBox = textBox;
-        this.SaveSettings = SaveSettings;
-        findAndReplaceWindow = new(textBox);
-        document = new Document();
-        scrollManager = new ScrollManager(textBox);
+        private readonly Document document;
+        private readonly IWindowService windowService;
+        private readonly IDocumentService documentService;
+        private readonly IThemeService themeService;
+        private readonly IFontService fontService;
+        private readonly TextEditor textEditor;
+        private readonly MenuItem menuItemFileDropdown;
+        private readonly Action SaveSettings;
+        private FindAndReplaceWindow findAndReplaceWindow;
+        private string statusText;
+        private double menuBarHeight;
+        private double infoBarHeight; // RESTORED THIS PROPERTY
+        private bool isMenuBarEnabled;
+        private bool isWordWrapEnabled;
+        private bool isInfoBarVisible;
 
-        InitializeTextBoxEvents(textBox);
-        InitializeCommands();
-        UpdateMenuBarVisibility(Settings.Default.MenuBarAutoHide);
-        UpdateInfoBarVisibility(Settings.Default.InfoBarVisible);
-        this.themeService.LoadCurrentTheme();
-        LoadRecentFiles();
-        UpdateStatusBar();
-        OnPropertyChanged("AvailableThemes");
-    }
+        public ICommand NewCommand { get; private set; }
+        public ICommand OpenCommand { get; private set; }
+        public ICommand SaveCommand { get; private set; }
+        public ICommand SaveAsCommand { get; private set; }
+        public ICommand PrintCommand { get; private set; }
+        public ICommand ExitCommand { get; private set; }
+        public ICommand ToggleWordWrapCommand { get; private set; }
+        public ICommand ToggleInfoBarCommand { get; private set; }
+        public ICommand CopyCommand { get; private set; }
+        public ICommand CutCommand { get; private set; }
+        public ICommand PasteCommand { get; private set; }
+        public ICommand ChangeThemeCommand { get; private set; }
+        public ICommand OpenThemeEditorCommand { get; private set; }
+        public ICommand OpenFontEditorCommand { get; private set; }
+        public ICommand OpenFindReplaceCommand { get; private set; }
+        public ICommand OpenFileLocationCommand { get; private set; }
+        public ICommand MouseMoveCommand { get; private set; }
+        public ICommand ResizeCommand { get; private set; }
+        public ICommand OpenRecentCommand { get; private set; }
 
-    void InitializeCommands()
-    {
-        NewCommand = new RelayCommand(NewDocument);
-        OpenCommand = new RelayCommand(OpenDocument);
-        SaveCommand = new RelayCommand(SaveDocument);
-        SaveAsCommand = new RelayCommand(SaveDocumentAs);
-        PrintCommand = new RelayCommand(PrintDocument);
-        ToggleWordWrapCommand = new RelayCommand(ToggleWordWrap);
-        ToggleMenuBarCommand = new RelayCommand(ToggleMenuBar);
-        ToggleInfoBarCommand = new RelayCommand(ToggleInfoBar);
-        CopyCommand = new RelayCommand(Copy);
-        CutCommand = new RelayCommand(Cut);
-        PasteCommand = new RelayCommand(Paste);
-        ChangeThemeCommand = new RelayCommand<ThemeInfo>(OnThemeChange);
-        OpenThemeEditorCommand = new RelayCommand(OnOpenThemeEditor);
-        OpenFontEditorCommand = new RelayCommand(OnOpenFontEditor);
-        OpenFindReplaceCommand = new RelayCommand(OnOpenFindReplaceEditor);
-        InsertTabCommand = new RelayCommand(InsertTab);
-        OpenFileLocationCommand = new RelayCommand(OpenFileLocation);
-        MouseMoveCommand = new RelayCommand<double>(HandleMouseMovement);
-        ResizeCommand = new RelayCommand<Point>(p => HandleWindowResize(Application.Current.MainWindow, p));
-        SelectionChangedCommand = new RelayCommand<RoutedEventArgs>(HandleSelectionChanged);
-        TextChangedCommand = new RelayCommand<TextChangedEventArgs>(HandleTextChanged);
-        PreviewKeyDownCommand = new RelayCommand<KeyEventArgs>(HandlePreviewKeyDown);
-        OpenRecentCommand = new RelayCommand<RoutedEventArgs>(HandleOpenRecent);
-    }
+        public ObservableCollection<ThemeInfo> AvailableThemes => themeService.AvailableThemes;
 
-    public string CurrentThemeName
-    {
-        get => Settings.Default.ThemeName;
-        set
+        public MainWindowViewModel(IWindowService windowService, IDocumentService documentService, IThemeService themeService, IFontService fontService, MenuItem menuItemFileDropdown, TextEditor textEditor, Action SaveSettings)
         {
-            Settings.Default.ThemeName = value;
-            OnPropertyChanged();
+            this.windowService = windowService;
+            this.documentService = documentService;
+            this.themeService = themeService;
+            this.fontService = fontService;
+            this.menuItemFileDropdown = menuItemFileDropdown;
+            this.textEditor = textEditor;
+            this.SaveSettings = SaveSettings;
+
+            document = new Document();
+            this.textEditor.TextArea.Caret.PositionChanged += Caret_PositionChanged;
+
+            InitializeCommands();
+            UpdateMenuBarVisibility(Settings.Default.MenuBarAutoHide);
+
+            // Initialize IsInfoBarVisible which in turn sets InfoBarHeight
+            IsInfoBarVisible = Settings.Default.InfoBarVisible;
+            IsWordWrapEnabled = Settings.Default.TextWrapping;
+
+            this.themeService.LoadCurrentTheme();
+            LoadRecentFiles();
+            UpdateStatusBar();
+            OnPropertyChanged(nameof(AvailableThemes));
         }
-    }
-    public string DocumentContent
-    {
-        get => document.Content;
-        set
+
+        private void Caret_PositionChanged(object sender, EventArgs e)
         {
-            if(document.Content != value)
+            UpdateStatusBar();
+        }
+
+        void InitializeCommands()
+        {
+            NewCommand = new RelayCommand(NewDocument);
+            OpenCommand = new RelayCommand(async () => await OpenDocument());
+            SaveCommand = new RelayCommand(async () => await SaveDocument());
+            SaveAsCommand = new RelayCommand(async () => await SaveDocumentAs());
+            PrintCommand = new RelayCommand(PrintDocument);
+            ToggleWordWrapCommand = new RelayCommand(ToggleWordWrap);
+            ToggleInfoBarCommand = new RelayCommand(ToggleInfoBar);
+            CopyCommand = new RelayCommand(Copy, () => textEditor.SelectionLength > 0);
+            CutCommand = new RelayCommand(Cut, () => textEditor.SelectionLength > 0);
+            PasteCommand = new RelayCommand(Paste, () => Clipboard.ContainsText());
+            ChangeThemeCommand = new RelayCommand<ThemeInfo>(OnThemeChange);
+            OpenThemeEditorCommand = new RelayCommand(OnOpenThemeEditor);
+            OpenFontEditorCommand = new RelayCommand(OnOpenFontEditor);
+            OpenFindReplaceCommand = new RelayCommand(OnOpenFindReplaceEditor);
+            OpenFileLocationCommand = new RelayCommand(OpenFileLocation, () => !string.IsNullOrEmpty(document.FilePath));
+            MouseMoveCommand = new RelayCommand<double>(HandleMouseMovement);
+            ResizeCommand = new RelayCommand<Point>(p => HandleWindowResize(Application.Current.MainWindow, p));
+            OpenRecentCommand = new RelayCommand<RoutedEventArgs>(HandleOpenRecent);
+        }
+
+        public string CurrentThemeName
+        {
+            get => Settings.Default.ThemeName;
+            set
             {
+                if(Settings.Default.ThemeName == value) return;
+                Settings.Default.ThemeName = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string DocumentContent
+        {
+            get => document.Content;
+            set
+            {
+                if(document.Content == value) return;
                 document.Content = value;
                 document.IsModified = true;
                 OnPropertyChanged();
@@ -131,401 +133,246 @@ public class MainWindowViewModel : ViewModelBase
                 UpdateStatusBar();
             }
         }
-    }
 
-    public Document Document => document;
+        public string StatusText { get => statusText; set => SetProperty(ref statusText, value); }
+        public double MenuBarHeight { get => menuBarHeight; set => SetProperty(ref menuBarHeight, value); }
+        public double InfoBarHeight { get => infoBarHeight; set => SetProperty(ref infoBarHeight, value); } // RESTORED
+        public bool IsMenuBarEnabled { get => isMenuBarEnabled; set => SetProperty(ref isMenuBarEnabled, value); }
+        public CustomTitleBarViewModel TitleBarViewModel { get; set; }
 
-    public int SelectionStart
-    {
-        get => document.SelectionStart;
-        set => document.SelectionStart = value;
-    }
-
-    public int SelectionLength
-    {
-        get => document.SelectionLength;
-        set => document.SelectionLength = value;
-    }
-
-    public string StatusText
-    {
-        get => statusText;
-        set => SetProperty(ref statusText, value);
-    }
-
-    public double MenuBarHeight
-    {
-        get => menuBarHeight;
-        set => SetProperty(ref menuBarHeight, value);
-    }
-
-    public double InfoBarHeight
-    {
-        get => infoBarHeight;
-        set => SetProperty(ref infoBarHeight, value);
-    }
-
-    public bool IsMenuBarEnabled
-    {
-        get => isMenuBarEnabled;
-        set => SetProperty(ref isMenuBarEnabled, value);
-    }
-
-    public TextWrapping TextWrappingMode => Settings.Default.TextWrapping ? TextWrapping.Wrap : TextWrapping.NoWrap;
-    public bool IsAutoHideMenuBarEnabled => Settings.Default.MenuBarAutoHide;
-    public CustomTitleBarViewModel TitleBarViewModel { get; set; }
-
-
-
-    void LoadRecentFiles()
-    {
-        RecentFileManager.LoadRecentFilesFromSettings();
-        RecentFileManager.PopulateRecentFilesMenu(menuItemFileDropdown);
-    }
-
-    void AddRecentFile(string filePath) => RecentFileManager.AddRecentFile(filePath, menuItemFileDropdown, SaveSettings);
-
-    void OnOpenThemeEditor() => themeService.OpenThemeEditor();
-
-    void OnOpenFontEditor() => fontService.OpenFontEditor();
-
-    void OnOpenFindReplaceEditor()
-    {
-        findAndReplaceWindow = new(textBox);
-        findAndReplaceWindow.Show();
-    }
-
-
-
-    void OnThemeChange(ThemeInfo theme)
-    {
-        if(theme != null)
+        public bool IsWordWrapEnabled
         {
+            get => isWordWrapEnabled;
+            set
+            {
+                SetProperty(ref isWordWrapEnabled, value);
+                Settings.Default.TextWrapping = value;
+                SaveSettings();
+            }
+        }
+
+        public bool IsInfoBarVisible
+        {
+            get => isInfoBarVisible;
+            set
+            {
+                if(SetProperty(ref isInfoBarVisible, value))
+                {
+                    // UPDATE InfoBarHeight whenever this changes
+                    InfoBarHeight = value ? UIConstants.InfoBarHeight : 0;
+                    Settings.Default.InfoBarVisible = value;
+                    SaveSettings();
+                }
+            }
+        }
+
+        private void LoadRecentFiles()
+        {
+            RecentFileManager.LoadRecentFilesFromSettings();
+            RecentFileManager.PopulateRecentFilesMenu(menuItemFileDropdown);
+        }
+
+        private void AddRecentFile(string filePath) => RecentFileManager.AddRecentFile(filePath, menuItemFileDropdown, SaveSettings);
+
+        private void OnOpenThemeEditor() => themeService.OpenThemeEditor();
+        private void OnOpenFontEditor() => fontService.OpenFontEditor();
+
+        private void OnOpenFindReplaceEditor()
+        {
+            findAndReplaceWindow ??= new FindAndReplaceWindow(textEditor);
+            findAndReplaceWindow.Show();
+            findAndReplaceWindow.Activate();
+        }
+
+        private void OnThemeChange(ThemeInfo theme)
+        {
+            if(theme == null) return;
             themeService.ApplyTheme(theme.Name);
             CurrentThemeName = theme.Name;
             themeService.AddEditableColorLinesToWindow();
         }
-    }
 
-    void OpenDocument()
-    {
-        if(!PromptToSaveChanges()) return;
-
-        var dialog = new System.Windows.Forms.OpenFileDialog
+        private async Task OpenDocument()
         {
-            Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
-        };
+            if(!PromptToSaveChanges()) return;
 
-        if(dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-            LoadDocument(dialog.FileName);
-    }
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
+            };
 
-    void SaveDocumentAs()
-    {
-        var dialog = new System.Windows.Forms.SaveFileDialog
+            if(dialog.ShowDialog() != true) return;
+
+            var fileInfo = new FileInfo(dialog.FileName);
+            if(fileInfo.Length > 20 * 1024 * 1024) // 20 MB warning threshold
+            {
+                var proceed = windowService.ShowConfirmDialog("This file is very large and may cause performance issues. Continue?", "Large File Warning");
+                if(!proceed) return;
+            }
+
+            await LoadDocument(dialog.FileName);
+        }
+
+        private async Task SaveDocumentAs()
         {
-            Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
-            DefaultExt = ".txt"
-        };
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+                DefaultExt = ".txt"
+            };
 
-        if(dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-        {
+            if(dialog.ShowDialog() != true) return;
+
             document.FilePath = dialog.FileName;
-            SaveDocument();
+            await SaveDocument();
         }
-    }
 
-    void ToggleWordWrap()
-    {
-        Settings.Default.TextWrapping = !Settings.Default.TextWrapping;
-        SaveSettings();
-        OnPropertyChanged(nameof(TextWrappingMode));
-    }
+        private void ToggleWordWrap() => IsWordWrapEnabled = !IsWordWrapEnabled;
+        private void ToggleInfoBar() => IsInfoBarVisible = !IsInfoBarVisible;
 
-    void UpdateMenuBarVisibility(bool autoHide)
-    {
-        MenuBarHeight = autoHide ? 0 : UIConstants.MenuBarHeight;
-        IsMenuBarEnabled = !autoHide;
-    }
+        private void UpdateMenuBarVisibility(bool autoHide)
+        {
+            MenuBarHeight = autoHide ? 0 : UIConstants.MenuBarHeight;
+            IsMenuBarEnabled = !autoHide;
+        }
 
-    void UpdateInfoBarVisibility(bool visible) => InfoBarHeight = visible ? UIConstants.InfoBarHeight : 0;
+        private void UpdateTitle()
+        {
+            var title = string.IsNullOrEmpty(document.FileName) ? "NotepadEx" : $"NotepadEx   |  {document.FileName}{(document.IsModified ? "*" : "")}";
+            if(TitleBarViewModel != null)
+            {
+                TitleBarViewModel.TitleText = title;
+            }
+        }
 
-    void UpdateTitle()
-    {
-        var title = string.IsNullOrEmpty(document.FileName) ? "NotepadEx" : $"NotepadEx   |  {document.FileName}{(document.IsModified ? "*" : "")}";
-        TitleBarViewModel.TitleText = title;
-    }
+        public bool PromptToSaveChanges()
+        {
+            if(!document.IsModified) return true;
 
-    public bool PromptToSaveChanges()
-    {
-        if(!document.IsModified)
+            var result = MessageBox.Show("You have unsaved changes. Would you like to save them before proceeding?", "Unsaved Changes", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+            switch(result)
+            {
+                case MessageBoxResult.Yes:
+                    _ = SaveDocument();
+                    return true;
+                case MessageBoxResult.No:
+                    return true;
+                case MessageBoxResult.Cancel:
+                    return false;
+            }
             return true;
-
-        var bResult = windowService.ShowConfirmDialog("Do you want to save changes?", "Save Changes");
-
-        if(bResult)
-            SaveDocument();
-
-        return true;
-    }
-
-    void SaveDocument()
-    {
-        if(string.IsNullOrEmpty(document.FilePath))
-        {
-            SaveDocumentAs();
-            return;
         }
 
-        try
+        private async Task SaveDocument()
         {
-            documentService.SaveDocument(document);
-            UpdateTitle();
-            UpdateStatusBar();
+            if(string.IsNullOrEmpty(document.FilePath))
+            {
+                await SaveDocumentAs();
+                return;
+            }
+
+            try
+            {
+                document.Content = textEditor.Document.Text;
+                await documentService.SaveDocumentAsync(document);
+                document.IsModified = false; // Manually set after saving.
+                UpdateTitle();
+                UpdateStatusBar();
+            }
+            catch(Exception ex)
+            {
+                windowService.ShowDialog($"Error saving file: {ex.Message}", "Error");
+            }
         }
-        catch(Exception ex)
+
+        private void PrintDocument()
         {
-            windowService.ShowDialog($"Error saving file: {ex.Message}", "Error");
+            try
+            {
+                documentService.PrintDocument(document);
+            }
+            catch(Exception ex)
+            {
+                windowService.ShowDialog($"Error printing document: {ex.Message}", "Error");
+            }
         }
-    }
 
-    void PrintDocument()
-    {
-        try
+        private void UpdateStatusBar()
         {
-            documentService.PrintDocument(document);
+            var caret = textEditor.TextArea.Caret;
+            StatusText = $"Ln {caret.Line}, Col {caret.Column} | Characters: {textEditor.Document.TextLength}";
         }
-        catch(Exception ex)
+
+        public void HandleMouseMovement(double mouseY)
         {
-            windowService.ShowDialog($"Error printing document: {ex.Message}", "Error");
+            if(Settings.Default.MenuBarAutoHide && mouseY < 2)
+                UpdateMenuBarVisibility(false);
+            else if(Settings.Default.MenuBarAutoHide && mouseY > UIConstants.MenuBarHeight)
+                UpdateMenuBarVisibility(true);
         }
-    }
 
-    void ToggleMenuBar()
-    {
-        Settings.Default.MenuBarAutoHide = !Settings.Default.MenuBarAutoHide;
-        UpdateMenuBarVisibility(Settings.Default.MenuBarAutoHide);
-        SaveSettings();
-    }
-
-    void ToggleInfoBar()
-    {
-        Settings.Default.InfoBarVisible = !Settings.Default.InfoBarVisible;
-        UpdateInfoBarVisibility(Settings.Default.InfoBarVisible);
-        SaveSettings();
-    }
-
-    void UpdateStatusBar()
-    {
-        var lineCount = document.Content.Split('\n').Length;
-        var charCount = document.Content.Length;
-        StatusText = $"Lines: {lineCount} | Characters: {charCount}";
-    }
-
-    public void HandleMouseMovement(double mouseY)
-    {
-        if(Settings.Default.MenuBarAutoHide && mouseY < 2)
-            UpdateMenuBarVisibility(false);
-        else if(Settings.Default.MenuBarAutoHide && mouseY > UIConstants.MenuBarHeight)
-            UpdateMenuBarVisibility(true);
-    }
-
-    public void UpdateWindowState(WindowState newState)
-    {
-        if(newState != WindowState.Minimized)
+        public void UpdateWindowState(WindowState newState)
         {
+            if(newState == WindowState.Minimized) return;
             UpdateMenuBarVisibility(Settings.Default.MenuBarAutoHide);
-            UpdateInfoBarVisibility(Settings.Default.InfoBarVisible);
         }
-    }
 
-    public void UpdateSelection(int selectionStart, int selectionLength)
-    {
-        SelectionStart = selectionStart;
-        SelectionLength = selectionLength;
-    }
+        public void HandleWindowResize(Window window, Point position) => WindowResizerUtil.ResizeWindow(window, position);
 
-    public void ToggleMaximizeState(Window window) => WindowResizerUtil.ToggleMaximizeState(window);
-
-    public void HandleWindowResize(Window window, Point position) => WindowResizerUtil.ResizeWindow(window, position);
-
-    public void OpenRecentFile(string path)
-    {
-        if(!PromptToSaveChanges())
-            return;
-        LoadDocument(path);
-    }
-
-    void Copy()
-    {
-        if(!string.IsNullOrEmpty(document.SelectedText))
-            Clipboard.SetText(document.SelectedText);
-        else
-            Clipboard.SetText(document.GetCurrentLine());
-    }
-
-    void CutLine() => document.CutLine(textBox);
-
-    void Paste()
-    {
-        if(Clipboard.ContainsText())
+        public async Task OpenRecentFile(string path)
         {
-            var text = Clipboard.GetText();
-            var caretPosition = textBox.SelectionStart + text.Length;
-            textBox.SelectedText = text;
-            textBox.SelectionStart = caretPosition;
+            if(!PromptToSaveChanges()) return;
+            await LoadDocument(path);
         }
-    }
 
-    void InsertTab()
-    {
-        var caretPosition = textBox.SelectionStart + 4;
-        textBox.SelectedText = "    ";
-        textBox.SelectionStart = caretPosition;
-    }
+        private void Copy() => textEditor.Copy();
+        private void Cut() => textEditor.Cut();
+        private void Paste() => textEditor.Paste();
 
-    void Cut()
-    {
-        if(!string.IsNullOrEmpty(document.SelectedText))
+        private async Task LoadDocument(string filePath)
         {
-            Clipboard.SetText(document.SelectedText);
-            textBox.SelectedText = "";
+            try
+            {
+                await documentService.LoadDocumentAsync(filePath, document);
+                DocumentContent = document.Content;
+                document.IsModified = false;
+                UpdateTitle();
+                AddRecentFile(filePath);
+            }
+            catch(Exception ex)
+            {
+                windowService.ShowDialog($"Error loading file: {ex.Message}", "Error");
+            }
         }
-        else
-            CutLine();
-    }
 
-    void LoadDocument(string filePath)
-    {
-        try
+        private void NewDocument()
         {
-            documentService.LoadDocument(filePath, document);
+            if(!PromptToSaveChanges()) return;
+
+            document.Content = string.Empty;
+            document.FilePath = string.Empty;
+            document.IsModified = false;
+            DocumentContent = string.Empty;
+            document.IsModified = false;
             UpdateTitle();
-            UpdateStatusBar();
-            AddRecentFile(filePath);
-            OnPropertyChanged("DocumentContent");
         }
-        catch(Exception ex)
+
+        private void OpenFileLocation()
         {
-            windowService.ShowDialog(
-                $"Error loading file: {ex.Message}",
-                "Error");
+            var path = document.FilePath;
+            if(File.Exists(path))
+                Process.Start("explorer.exe", $"/select,\"{path}\"");
         }
-    }
 
-    void NewDocument()
-    {
-        if(!PromptToSaveChanges())
-            return;
-
-        document.Content = string.Empty;
-        document.FilePath = string.Empty;
-        document.IsModified = false;
-        UpdateTitle();
-        OnPropertyChanged("DocumentContent");
-    }
-
-    void OpenFileLocation()
-    {
-        var path = document.FilePath;
-        if(File.Exists(path))
-            Process.Start("explorer.exe", $"/select,\"{path}\"");
-    }
-
-    void InitializeTextBoxEvents(TextBox textBox)
-    {
-        textBox.PreviewKeyDown += TextBox_PreviewKeyDown;
-        textBox.TextChanged += TextBox_TextChanged;
-        textBox.SelectionChanged += TextBox_SelectionChanged;
-    }
-
-    void TextBox_PreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        bool isNavigationKey = e.Key == Key.Left || e.Key == Key.Right ||
-                             e.Key == Key.Up || e.Key == Key.Down ||
-                             e.Key == Key.Home || e.Key == Key.End ||
-                             e.Key == Key.PageUp || e.Key == Key.PageDown;
-
-        if(isNavigationKey)
-            scrollManager.HandleNavigationKey(e.Key, Keyboard.Modifiers);
-    }
-
-    void TextBox_TextChanged(object sender, TextChangedEventArgs e) => scrollManager.HandleTextChanged();
-
-    void TextBox_SelectionChanged(object sender, RoutedEventArgs e)
-    {
-        scrollManager.HandleSelectionChanged();
-
-        if(sender is TextBox textBox)
+        private async void HandleOpenRecent(RoutedEventArgs e)
         {
-            UpdateSelection(textBox.SelectionStart, textBox.SelectionLength);
+            if(e.OriginalSource is MenuItem menuItem && menuItem.Header is string path && path != "...")
+                await OpenRecentFile(path);
         }
-    }
 
-    void HandleOpenRecent(RoutedEventArgs e)
-    {
-        if(e.OriginalSource is MenuItem menuItem && menuItem.Header is string path && path != "...")
-            OpenRecentFile(path);
-    }
-
-    void HandleSelectionChanged(RoutedEventArgs e)
-    {
-        if(e.Source is TextBox textBox)
-            UpdateSelection(textBox.SelectionStart, textBox.SelectionLength);
-    }
-
-    void HandleTextChanged(TextChangedEventArgs e) => scrollManager.HandleTextChanged();
-
-    void HandlePreviewKeyDown(KeyEventArgs e)
-    {
-        bool isNavigationKey = e.Key == Key.Left || e.Key == Key.Right ||
-                             e.Key == Key.Up || e.Key == Key.Down ||
-                             e.Key == Key.Home || e.Key == Key.End ||
-                             e.Key == Key.PageUp || e.Key == Key.PageDown;
-
-        if(isNavigationKey)
-            scrollManager.HandleNavigationKey(e.Key, Keyboard.Modifiers);
-    }
-
-    public void Cleanup()
-    {
-        (MouseMoveCommand as IDisposable)?.Dispose();
-        (ResizeCommand as IDisposable)?.Dispose();
-        (SelectionChangedCommand as IDisposable)?.Dispose();
-        (TextChangedCommand as IDisposable)?.Dispose();
-        (PreviewKeyDownCommand as IDisposable)?.Dispose();
-        (NewCommand as IDisposable)?.Dispose();
-        (OpenCommand as IDisposable)?.Dispose();
-        (SaveCommand as IDisposable)?.Dispose();
-        (SaveAsCommand as IDisposable)?.Dispose();
-        (PrintCommand as IDisposable)?.Dispose();
-        (ExitCommand as IDisposable)?.Dispose();
-        (ToggleWordWrapCommand as IDisposable)?.Dispose();
-        (ToggleMenuBarCommand as IDisposable)?.Dispose();
-        (ToggleInfoBarCommand as IDisposable)?.Dispose();
-        (CopyCommand as IDisposable)?.Dispose();
-        (CutCommand as IDisposable)?.Dispose();
-        (PasteCommand as IDisposable)?.Dispose();
-        (ChangeThemeCommand as IDisposable)?.Dispose();
-        (OpenThemeEditorCommand as IDisposable)?.Dispose();
-        (InsertTabCommand as IDisposable)?.Dispose();
-        (OpenFileLocationCommand as IDisposable)?.Dispose();
-        (OpenRecentCommand as IDisposable)?.Dispose();
-
-        if(textBox != null)
+        public void Cleanup()
         {
-            textBox.PreviewKeyDown -= TextBox_PreviewKeyDown;
-            textBox.TextChanged -= TextBox_TextChanged;
-            textBox.SelectionChanged -= TextBox_SelectionChanged;
+            SaveSettings?.Invoke();
         }
-
-        (windowService as IDisposable)?.Dispose();
-        (documentService as IDisposable)?.Dispose();
-        (themeService as IDisposable)?.Dispose();
-        (scrollManager as IDisposable)?.Dispose();
-
-        AvailableThemes?.Clear();
-        (document as IDisposable)?.Dispose();
-        SaveSettings?.Invoke();
     }
 }
