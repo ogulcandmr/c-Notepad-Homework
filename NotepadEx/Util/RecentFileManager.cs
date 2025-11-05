@@ -1,48 +1,76 @@
-﻿using System.Windows.Controls;
+﻿using NotepadEx.Properties;
+using NotepadEx.Util;
+using System.Collections.Generic;
+using System.Linq;
 
-namespace NotepadEx.Util;
-
-public static class RecentFileManager
+namespace NotepadEx.Util
 {
-    const int maxRecentsToTrack = 20;
-    public static List<string> RecentFiles { get; private set; } = new();
-
-    public static void LoadRecentFilesFromSettings()
+    public static class RecentFileManager
     {
-        string recentFilesString = Properties.Settings.Default.RecentFiles;
-        if(!string.IsNullOrEmpty(recentFilesString))
-            RecentFiles = recentFilesString.Split(',').ToList();
-    }
+        private const int MaxRecentsToTrack = 50;
 
-    public static void AddRecentFile(string filePath, MenuItem FileDropDown, Action SaveSettings)
-    {
-        if(!string.IsNullOrEmpty(filePath))
+        /// <summary>
+        /// Atomically adds a file path to the recent files list, ensuring process safety.
+        /// </summary>
+        /// <param name="filePath">The file path to add.</param>
+        public static void AddFile(string filePath)
         {
-            if(RecentFiles.Contains(filePath))
+            if(string.IsNullOrEmpty(filePath))
             {
-                var index = RecentFiles.IndexOf(filePath);
-                var file = RecentFiles[index];
-                RecentFiles.RemoveAt(index);
+                return;
             }
 
-            RecentFiles.Insert(0, filePath);
-            if(RecentFiles.Count > maxRecentsToTrack)
-                RecentFiles.RemoveAt(RecentFiles.Count - 1);
-            SaveSettings();
-            PopulateRecentFilesMenu(FileDropDown);
-        }
-    }
+            // Perform the entire read-modify-write operation within a single system-wide lock.
+            ProcessSync.RunSynchronized(() =>
+            {
+                // Step 1: Read the latest list directly from settings.
+                var recentFiles = GetRecentFilesFromSettings();
 
-    public static void PopulateRecentFilesMenu(MenuItem FileDropDown)
-    {
-        MenuItem openRecentMenuItem = (MenuItem)FileDropDown.FindName("MenuItem_OpenRecent");
-        openRecentMenuItem.Items.Clear();
-        foreach(string file in RecentFiles)
+                // Step 2: Modify the list.
+                // Remove the item if it already exists to move it to the top.
+                recentFiles.Remove(filePath);
+
+                // Add the new item to the top of the list.
+                recentFiles.Insert(0, filePath);
+
+                // Trim the list if it's too long.
+                if(recentFiles.Count > MaxRecentsToTrack)
+                {
+                    recentFiles.RemoveAt(recentFiles.Count - 1);
+                }
+
+                // Step 3: Write the modified list back to settings and save.
+                Settings.Default.RecentFiles = string.Join(",", recentFiles);
+                Settings.Default.Save();
+            });
+        }
+
+        /// <summary>
+        /// Atomically retrieves the current list of recent files.
+        /// </summary>
+        /// <returns>A list of recent file paths.</returns>
+        public static List<string> GetRecentFiles()
         {
-            MenuItem menuItem = new MenuItem();
-            menuItem.Header = file;
-            openRecentMenuItem.Items.Add(menuItem);
+            List<string> recentFiles = new List<string>();
+            ProcessSync.RunSynchronized(() =>
+            {
+                recentFiles = GetRecentFilesFromSettings();
+            });
+            return recentFiles;
+        }
+
+        /// <summary>
+        /// A private helper to read and parse the recent files string from settings.
+        /// This should only be called from within a synchronized context.
+        /// </summary>
+        private static List<string> GetRecentFilesFromSettings()
+        {
+            string recentFilesString = Settings.Default.RecentFiles;
+            if(!string.IsNullOrEmpty(recentFilesString))
+            {
+                return recentFilesString.Split(',').ToList();
+            }
+            return new List<string>();
         }
     }
 }
-

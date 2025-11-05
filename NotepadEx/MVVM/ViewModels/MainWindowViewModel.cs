@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using ICSharpCode.AvalonEdit;
 using ICSharpCode.AvalonEdit.Highlighting;
 using NotepadEx.MVVM.Models;
@@ -14,6 +15,7 @@ using NotepadEx.MVVM.View;
 using NotepadEx.Properties;
 using NotepadEx.Services.Interfaces;
 using NotepadEx.Util;
+using Brush = System.Windows.Media.Brush;
 using Point = System.Windows.Point;
 
 namespace NotepadEx.MVVM.ViewModels
@@ -86,7 +88,7 @@ namespace NotepadEx.MVVM.ViewModels
             CurrentSyntaxHighlighting = HighlightingManager.Instance.GetDefinition(Settings.Default.SyntaxHighlightingName) ?? HighlightingManager.Instance.GetDefinition("C#");
 
             this.themeService.LoadCurrentTheme();
-            LoadRecentFiles();
+            UpdateRecentFilesMenu();
             UpdateStatusBar();
             OnPropertyChanged(nameof(AvailableThemes));
         }
@@ -180,13 +182,31 @@ namespace NotepadEx.MVVM.ViewModels
             set => SetProperty(ref currentSyntaxHighlighting, value);
         }
 
-        private void LoadRecentFiles()
+        private void AddRecentFile(string filePath)
         {
-            RecentFileManager.LoadRecentFilesFromSettings();
-            RecentFileManager.PopulateRecentFilesMenu(menuItemFileDropdown);
+            RecentFileManager.AddFile(filePath);
+            UpdateRecentFilesMenu();
         }
 
-        private void AddRecentFile(string filePath) => RecentFileManager.AddRecentFile(filePath, menuItemFileDropdown, SaveSettings);
+        private void UpdateRecentFilesMenu()
+        {
+            var openRecentMenuItem = (MenuItem)menuItemFileDropdown.FindName("MenuItem_OpenRecent");
+            if(openRecentMenuItem == null) return;
+
+            var recentFiles = RecentFileManager.GetRecentFiles();
+            var menuFgBrush = (Brush)Application.Current.FindResource("Color_MenuItemFg");
+
+            openRecentMenuItem.Items.Clear();
+            foreach(string file in recentFiles)
+            {
+                MenuItem menuItem = new MenuItem
+                {
+                    Header = file,
+                    Foreground = menuFgBrush
+                };
+                openRecentMenuItem.Items.Add(menuItem);
+            }
+        }
 
         private void OnOpenThemeEditor() => themeService.OpenThemeEditor();
 

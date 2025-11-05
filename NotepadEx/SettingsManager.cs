@@ -11,7 +11,6 @@ namespace NotepadEx
         {
             ProcessSync.RunSynchronized(() =>
             {
-                Settings.Default.RecentFiles = string.Join(",", RecentFileManager.RecentFiles);
                 Settings.Default.WindowSizeX = window.Width;
                 Settings.Default.WindowSizeY = window.Height;
                 Settings.Default.TextWrapping = textEditor.WordWrap;
