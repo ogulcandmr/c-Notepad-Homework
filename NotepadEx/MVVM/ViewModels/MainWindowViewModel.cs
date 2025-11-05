@@ -137,12 +137,11 @@ namespace NotepadEx.MVVM.ViewModels
             get => document.Content;
             set
             {
-                if(document.Content == value) return;
+                // ** FIX 1: The setter is now clean. Its only job is to set the value and notify. **
+                // The early exit is removed to ensure OnPropertyChanged ALWAYS fires.
                 document.Content = value;
-                document.IsModified = true;
+                // The responsibility of setting IsModified is moved to the actions that cause it.
                 OnPropertyChanged();
-                UpdateTitle();
-                UpdateStatusBar();
             }
         }
 
@@ -292,6 +291,8 @@ namespace NotepadEx.MVVM.ViewModels
                     _ = SaveDocument();
                     return true;
                 case MessageBoxResult.No:
+                    // ** FIX 2: Explicitly mark changes as discarded. **
+                    document.IsModified = false;
                     return true;
                 case MessageBoxResult.Cancel:
                     return false;
@@ -309,6 +310,7 @@ namespace NotepadEx.MVVM.ViewModels
 
             try
             {
+                // User-driven text change happens via binding. Here we just set content before saving.
                 document.Content = textEditor.Document.Text;
                 await documentService.SaveDocumentAsync(document);
                 document.IsModified = false;
@@ -321,6 +323,57 @@ namespace NotepadEx.MVVM.ViewModels
             }
         }
 
+        private void UpdateStatusBar()
+        {
+            var caret = textEditor.TextArea.Caret;
+            var totalChars = textEditor.Document.TextLength;
+            var totalLines = textEditor.Document.LineCount;
+            StatusText = $"Ln {caret.Line}, Col {caret.Column}   |   Characters: {totalChars}   |   Lines: {totalLines}";
+        }
+
+        public async Task OpenRecentFile(string path)
+        {
+            if(!PromptToSaveChanges()) return;
+            await LoadDocument(path);
+        }
+
+        private void Copy() => textEditor.Copy();
+        private void Cut() => textEditor.Cut();
+        private void Paste() => textEditor.Paste();
+
+        private async Task LoadDocument(string filePath)
+        {
+            try
+            {
+                await documentService.LoadDocumentAsync(filePath, document);
+
+                // ** FIX 3: This method now correctly controls the state after loading. **
+                DocumentContent = document.Content; // This updates the UI
+                document.IsModified = false;       // Explicitly set state to unmodified
+
+                UpdateTitle();
+                UpdateStatusBar();
+                AddRecentFile(filePath);
+            }
+            catch(Exception ex)
+            {
+                windowService.ShowDialog($"Error loading file: {ex.Message}", "Error");
+            }
+        }
+
+        private void NewDocument()
+        {
+            if(!PromptToSaveChanges()) return;
+
+            // ** FIX 4: Simplified and explicit state control. **
+            document.FilePath = string.Empty;
+            DocumentContent = string.Empty; // This clears the UI
+            document.IsModified = false;    // Explicitly set state to unmodified
+
+            UpdateTitle();
+            UpdateStatusBar();
+        }
+
         private void PrintDocument()
         {
             try
@@ -331,15 +384,6 @@ namespace NotepadEx.MVVM.ViewModels
             {
                 windowService.ShowDialog($"Error printing document: {ex.Message}", "Error");
             }
-        }
-
-        private void UpdateStatusBar()
-        {
-            var caret = textEditor.TextArea.Caret;
-            var totalChars = textEditor.Document.TextLength;
-            var totalLines = textEditor.Document.LineCount;
-
-            StatusText = $"Ln {caret.Line}, Col {caret.Column}   |   Characters: {totalChars}   |   Lines: {totalLines}";
         }
 
         public void HandleMouseMovement(double mouseY)
@@ -357,45 +401,6 @@ namespace NotepadEx.MVVM.ViewModels
         }
 
         public void HandleWindowResize(Window window, Point position) => WindowResizerUtil.ResizeWindow(window, position);
-
-        public async Task OpenRecentFile(string path)
-        {
-            if(!PromptToSaveChanges()) return;
-            await LoadDocument(path);
-        }
-
-        private void Copy() => textEditor.Copy();
-        private void Cut() => textEditor.Cut();
-        private void Paste() => textEditor.Paste();
-
-        private async Task LoadDocument(string filePath)
-        {
-            try
-            {
-                await documentService.LoadDocumentAsync(filePath, document);
-                DocumentContent = document.Content;
-                document.IsModified = false;
-                UpdateTitle();
-                UpdateStatusBar();
-                AddRecentFile(filePath);
-            }
-            catch(Exception ex)
-            {
-                windowService.ShowDialog($"Error loading file: {ex.Message}", "Error");
-            }
-        }
-
-        private void NewDocument()
-        {
-            if(!PromptToSaveChanges()) return;
-            document.Content = string.Empty;
-            document.FilePath = string.Empty;
-            document.IsModified = false;
-            DocumentContent = string.Empty;
-            document.IsModified = false;
-            UpdateTitle();
-            UpdateStatusBar();
-        }
 
         private void OpenFileLocation()
         {
