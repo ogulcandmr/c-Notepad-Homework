@@ -166,7 +166,7 @@
                                  BorderThickness="0"
                                  VerticalScrollBarVisibility="Auto"
                                  HorizontalScrollBarVisibility="Auto"
-                                 SpellCheck.IsEnabled="True"
+                                 SpellCheck.IsEnabled="False"
                                  CaretBrush="{DynamicResource Color_TextEditorCaret}"
                                  SelectionBrush="{DynamicResource Color_TextEditorTextHighlight}"
                                  Name="txtEditor">
