@@ -158,8 +158,11 @@
                             FontWeight="{DynamicResource Font_Weight}"
                             Background="Transparent"
                             Foreground="{DynamicResource Color_TextEditorFg}"
-                            ShowLineNumbers="False"
                             WordWrap="{Binding IsWordWrapEnabled}"
+                            SyntaxHighlighting="C#"
+                            ShowLineNumbers="True"
+                            LineNumbersForeground="{DynamicResource Color_MenuItemFg}"
+                            
                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
                             ScrollViewer.VerticalScrollBarVisibility="Auto">
                             <b:Interaction.Behaviors>
