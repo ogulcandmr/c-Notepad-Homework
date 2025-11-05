@@ -193,7 +193,7 @@
                             </MenuItem>
                         </MenuItem>
                         <MenuItem Header="About" Foreground="{DynamicResource Color_MenuItemFg}">
-                            <MenuItem Header="Github.com/BitSwapper" Foreground="{DynamicResource Color_MenuItemFg}"/>
+                            <MenuItem Header="Github.com/Hex-Coded" Foreground="{DynamicResource Color_MenuItemFg}"/>
                         </MenuItem>
                     </Menu>
 

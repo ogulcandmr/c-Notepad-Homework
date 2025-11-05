@@ -19,10 +19,9 @@ namespace NotepadEx
                 Settings.Default.FontWeight = textEditor.FontWeight.ToString();
                 Settings.Default.FontStyle = textEditor.FontStyle.ToString();
                 Settings.Default.ShowLineNumbers = textEditor.ShowLineNumbers;
-                if(textEditor.SyntaxHighlighting != null)
-                {
-                    Settings.Default.SyntaxHighlightingName = textEditor.SyntaxHighlighting.Name;
-                }
+
+                Settings.Default.SyntaxHighlightingName = textEditor.SyntaxHighlighting?.Name ?? "None / Plain Text";
+
                 Settings.Default.Underline = false;
                 Settings.Default.Strikethrough = false;
                 Settings.Default.Save();
