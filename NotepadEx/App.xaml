@@ -348,6 +348,56 @@
                 <Setter Property="BorderBrush" Value="{DynamicResource Color_ToolWindowButtonBorder}"/>
             </Style>
 
+            <Style TargetType="{x:Type ScrollViewer}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ScrollViewer}">
+                            <Grid x:Name="Grid" Background="{TemplateBinding Background}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <ScrollContentPresenter x:Name="PART_ScrollContentPresenter"
+                                                        Grid.Column="0"
+                                                        Grid.Row="0"
+                                                        CanContentScroll="{TemplateBinding CanContentScroll}"
+                                                        CanHorizontallyScroll="False"
+                                                        CanVerticallyScroll="False"
+                                                        ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                        Content="{TemplateBinding Content}"
+                                                        Margin="{TemplateBinding Padding}"/>
+                                <ScrollBar x:Name="PART_VerticalScrollBar"
+                                           Grid.Column="1"
+                                           Grid.Row="0"
+                                           AutomationProperties.AutomationId="VerticalScrollBar"
+                                           Cursor="Arrow"
+                                           Maximum="{TemplateBinding ScrollableHeight}"
+                                           Minimum="0"
+                                           Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                           ViewportSize="{TemplateBinding ViewportHeight}"
+                                           Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                                <ScrollBar x:Name="PART_HorizontalScrollBar"
+                                           Grid.Column="0"
+                                           Grid.Row="1"
+                                           AutomationProperties.AutomationId="HorizontalScrollBar"
+                                           Cursor="Arrow"
+                                           Maximum="{TemplateBinding ScrollableWidth}"
+                                           Minimum="0"
+                                           Orientation="Horizontal"
+                                           Value="{Binding HorizontalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                           ViewportSize="{TemplateBinding ViewportWidth}"
+                                           Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"/>
+                                <!-- This Rectangle is the corner. Setting its Fill to Transparent hides it. -->
+                                <Rectangle Grid.Column="1" Grid.Row="1" Fill="Transparent"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
             <Style x:Key="ScrollBarThumb" TargetType="{x:Type Thumb}">
                 <Setter Property="Template">
@@ -358,7 +408,8 @@
                                     Background="{TemplateBinding Foreground}"
                                     BorderBrush="Transparent"
                                     BorderThickness="1"
-                                    Opacity="0.6"/>
+                                    Opacity="0.8"/>
+                            <!-- You can still have a base opacity for the thumb if you like -->
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="thumb" Property="Opacity" Value="1"/>
@@ -406,11 +457,7 @@
                                     </Track.Thumb>
                                 </Track>
                             </Grid>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="false">
-                                    <Setter Property="Opacity" Value="0.4"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
+                            <!-- ** THE FIX: THIS TRIGGER BLOCK HAS BEEN REMOVED. ** -->
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
@@ -434,17 +481,14 @@
                                             </Track.Thumb>
                                         </Track>
                                     </Grid>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="false">
-                                            <Setter Property="Opacity" Value="0.4"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
+                                    <!-- ** THE FIX: THIS TRIGGER BLOCK HAS BEEN REMOVED. ** -->
                                 </ControlTemplate>
                             </Setter.Value>
                         </Setter>
                     </Trigger>
                 </Style.Triggers>
             </Style>
+
         </ResourceDictionary>
     </Application.Resources>
     
