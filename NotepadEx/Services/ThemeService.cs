@@ -32,6 +32,11 @@ namespace NotepadEx.Services
             LoadAvailableThemes();
         }
 
+        public void TriggerLiveUpdate()
+        {
+            ThemeChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         public void LoadCurrentTheme()
         {
             // This method reads the saved theme name from settings and tells ApplyTheme to load it.
