@@ -18,6 +18,7 @@ namespace NotepadEx
     public partial class MainWindow : Window, IDisposable
     {
         readonly MainWindowViewModel viewModel;
+        private WindowChrome _windowChrome;
 
         public MainWindow()
         {
@@ -29,12 +30,12 @@ namespace NotepadEx
             var fontService = new FontService(Application.Current);
             fontService.LoadCurrentFont();
 
-            // ** THE FIX: Apply theme brushes after the theme service is initialized. **
+
             ApplyAvalonEditTheme();
-            // We also need to re-apply it whenever the theme changes.
-            // A simple way is to subscribe to the ThemeEditorWindow's Closing event,
-            // but for a robust solution, the ThemeService should raise an event.
-            // For now, we will add a helper to re-apply.
+
+
+
+
             themeService.ThemeChanged += (s, e) => ApplyAvalonEditTheme();
 
 
@@ -44,6 +45,14 @@ namespace NotepadEx
             viewModel.TitleBarViewModel = CustomTitleBar.InitializeTitleBar(this, "NotepadEx", onClose: Application.Current.Shutdown);
 
             InitializeWindowEvents();
+
+            Loaded += MainWindow_Loaded;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            _windowChrome = new WindowChrome(this);
+            _windowChrome.Enable();
         }
 
         private void ApplyAvalonEditTheme()
@@ -60,7 +69,11 @@ namespace NotepadEx
                     viewModel.UpdateWindowState(WindowState);
             };
 
-            Closing += (s, e) => viewModel.Cleanup();
+            Closing += (s, e) =>
+            {
+                viewModel.Cleanup();
+                _windowChrome?.Detach();
+            };
             Closed += (s, e) => viewModel.PromptToSaveChanges();
         }
 

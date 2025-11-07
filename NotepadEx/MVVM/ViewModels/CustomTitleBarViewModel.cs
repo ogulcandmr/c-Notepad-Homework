@@ -3,100 +3,107 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using NotepadEx.Util;
 
-namespace NotepadEx.MVVM.ViewModels;
-
-public class CustomTitleBarViewModel : ViewModelBase
+namespace NotepadEx.MVVM.ViewModels
 {
-    Window window;
-    BitmapImage iconImage;
-    string titleText;
-    bool isResizeable;
-    bool showMinimizeButton = true;
-    bool showMaximizeButton = true;
-    bool showCloseButton = true;
-    Action onClose;
-
-    public string TitleText
+    public class CustomTitleBarViewModel : ViewModelBase
     {
-        get => titleText;
-        set => SetProperty(ref titleText, value);
-    }
+        Window window;
+        BitmapImage iconImage;
+        string titleText;
+        bool isResizeable;
+        bool showMinimizeButton = true;
+        bool showMaximizeButton = true;
+        bool showCloseButton = true;
+        Action onClose;
 
-    public BitmapImage IconImage
-    {
-        get => iconImage;
-        set => SetProperty(ref iconImage, value);
-    }
+        public string TitleText
+        {
+            get => titleText;
+            set => SetProperty(ref titleText, value);
+        }
 
-    bool _isMaximized;
+        public BitmapImage IconImage
+        {
+            get => iconImage;
+            set => SetProperty(ref iconImage, value);
+        }
 
-    public bool IsMaximized
-    {
-        get => _isMaximized;
-        set => SetProperty(ref _isMaximized, value);
-    }
+        bool _isMaximized;
 
-    public bool ShowMinimizeButton
-    {
-        get => showMinimizeButton;
-        set => SetProperty(ref showMinimizeButton, value);
-    }
+        public bool IsMaximized
+        {
+            get => _isMaximized;
+            set => SetProperty(ref _isMaximized, value);
+        }
 
-    public bool ShowMaximizeButton
-    {
-        get => showMaximizeButton;
-        set => SetProperty(ref showMaximizeButton, value);
-    }
+        public bool ShowMinimizeButton
+        {
+            get => showMinimizeButton;
+            set => SetProperty(ref showMinimizeButton, value);
+        }
 
-    public bool ShowCloseButton
-    {
-        get => showCloseButton;
-        set => SetProperty(ref showCloseButton, value);
-    }
+        public bool ShowMaximizeButton
+        {
+            get => showMaximizeButton;
+            set => SetProperty(ref showMaximizeButton, value);
+        }
 
-    public ICommand MinimizeCommand { get; }
-    public ICommand MaximizeCommand { get; }
-    public ICommand CloseCommand { get; }
-    public ICommand TitleBarMouseDownCommand { get; }
+        public bool ShowCloseButton
+        {
+            get => showCloseButton;
+            set => SetProperty(ref showCloseButton, value);
+        }
 
-    public CustomTitleBarViewModel(Window window, bool isResizeable = true)
-    {
-        this.window = window;
-        isResizeable = isResizeable;
+        public ICommand MinimizeCommand { get; }
+        public ICommand MaximizeCommand { get; }
+        public ICommand CloseCommand { get; }
+        // REMOVED: public ICommand TitleBarMouseDownCommand { get; }
 
-        MinimizeCommand = new RelayCommand(ExecuteMinimize);
-        MaximizeCommand = new RelayCommand(ExecuteMaximize);
-        CloseCommand = new RelayCommand(ExecuteClose);
-        TitleBarMouseDownCommand = new RelayCommand<MouseButtonEventArgs>(ExecuteTitleBarMouseDown);
-    }
+        public CustomTitleBarViewModel(Window window, bool isResizeable = true)
+        {
+            this.window = window;
+            this.isResizeable = isResizeable; // Corrected variable name
 
-    void ExecuteMinimize() => window.WindowState = WindowState.Minimized;
+            MinimizeCommand = new RelayCommand(ExecuteMinimize);
+            MaximizeCommand = new RelayCommand(ExecuteMaximize);
+            CloseCommand = new RelayCommand(ExecuteClose);
+            // REMOVED: TitleBarMouseDownCommand = new RelayCommand<MouseButtonEventArgs>(ExecuteTitleBarMouseDown);
+        }
 
-    void ExecuteMaximize()
-    {
-        IsMaximized = !IsMaximized;
-        WindowResizerUtil.ToggleMaximizeState(window);
-    }
+        void ExecuteMinimize() => window.WindowState = WindowState.Minimized;
 
-    void ExecuteClose()
-    {
-        if(onClose != null)
-            onClose();
-        else
-            window.Close();
-    }
-    void ExecuteTitleBarMouseDown(MouseButtonEventArgs e)
-    {
-        if(!isResizeable || (isResizeable && e.GetPosition(window).Y > UIConstants.ResizeBorderWidth / 2))
-            window.DragMove();
-    }
+        void ExecuteMaximize()
+        {
+            IsMaximized = !IsMaximized;
+            // The WindowState change should be handled by the system now, but we can keep this for visual state
+            if(window.WindowState == WindowState.Maximized)
+            {
+                window.WindowState = WindowState.Normal;
+            }
+            else
+            {
+                window.WindowState = WindowState.Maximized;
+            }
+        }
 
-    public void Initialize(string titleText, bool showMinimize = true, bool showMaximize = true, bool showClose = true, Action onClose = null)
-    {
-        TitleText = titleText;
-        ShowMinimizeButton = showMinimize;
-        ShowMaximizeButton = showMaximize;
-        ShowCloseButton = showClose;
-        this.onClose = onClose;
+        void ExecuteClose()
+        {
+            if(onClose != null)
+                onClose();
+            else
+                window.Close();
+        }
+
+        // REMOVED: The ExecuteTitleBarMouseDown method is no longer needed.
+        // void ExecuteTitleBarMouseDown(MouseButtonEventArgs e) { ... }
+
+        public void Initialize(string titleText, bool showMinimize = true, bool showMaximize = true, bool showClose = true, Action onClose = null)
+        {
+            TitleText = titleText;
+            ShowMinimizeButton = showMinimize;
+            ShowMaximizeButton = showMaximize;
+            ShowCloseButton = showClose;
+            this.onClose = onClose;
+        }
     }
 }

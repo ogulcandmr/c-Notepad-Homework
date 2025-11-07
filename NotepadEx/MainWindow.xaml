@@ -15,14 +15,13 @@
         Width="800"
         WindowStyle="None"
         AllowsTransparency="True"
-        ResizeMode="NoResize"
+        ResizeMode="CanResize" 
         ShowInTaskbar="True"
         Background="Transparent">
 
     <b:Interaction.Behaviors>
         <behaviors:WindowMouseMoveBehavior 
-            MouseMoveCommand="{Binding MouseMoveCommand}"
-            ResizeCommand="{Binding ResizeCommand}"/>
+            MouseMoveCommand="{Binding MouseMoveCommand}"/>
     </b:Interaction.Behaviors>
 
     <Window.Resources>

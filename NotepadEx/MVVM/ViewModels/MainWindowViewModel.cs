@@ -57,7 +57,6 @@ namespace NotepadEx.MVVM.ViewModels
         public ICommand OpenFindReplaceCommand { get; private set; }
         public ICommand OpenFileLocationCommand { get; private set; }
         public ICommand MouseMoveCommand { get; private set; }
-        public ICommand ResizeCommand { get; private set; }
         public ICommand OpenRecentCommand { get; private set; }
         public ICommand ChangeSyntaxHighlightingCommand { get; private set; }
 
@@ -128,11 +127,9 @@ namespace NotepadEx.MVVM.ViewModels
             OpenFindReplaceCommand = new RelayCommand(OnOpenFindReplaceEditor);
             OpenFileLocationCommand = new RelayCommand(OpenFileLocation, () => !string.IsNullOrEmpty(document.FilePath));
             MouseMoveCommand = new RelayCommand<double>(HandleMouseMovement);
-            ResizeCommand = new RelayCommand<Point>(p => HandleWindowResize(Application.Current.MainWindow, p));
             OpenRecentCommand = new RelayCommand<RoutedEventArgs>(HandleOpenRecent);
             ChangeSyntaxHighlightingCommand = new RelayCommand<IHighlightingDefinition>(def => CurrentSyntaxHighlighting = def);
         }
-
 
         private async Task LoadDocument(string filePath)
         {
@@ -188,7 +185,6 @@ namespace NotepadEx.MVVM.ViewModels
                 openRecentMenuItem.Items.Add(menuItem);
             }
         }
-
 
         public string CurrentThemeName
         {
@@ -428,8 +424,6 @@ namespace NotepadEx.MVVM.ViewModels
             if(newState == WindowState.Minimized) return;
             UpdateMenuBarVisibility(Settings.Default.MenuBarAutoHide);
         }
-
-        public void HandleWindowResize(Window window, Point position) => WindowResizerUtil.ResizeWindow(window, position);
 
         private void OpenFileLocation()
         {
