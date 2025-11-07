@@ -129,7 +129,7 @@
                                             <Setter.Value>
                                                 <MultiBinding Converter="{StaticResource StringEqualityMultiConverter}" Mode="OneWay">
                                                     <Binding Path="Name" />
-                                                    <Binding Path="DataContext.CurrentSyntaxHighlighting.Name" RelativeSource="{RelativeSource AncestorType=Window}" FallbackValue="None / Plain Text"/>
+                                                    <Binding Path="DataContext.CurrentSyntaxHighlightingName" RelativeSource="{RelativeSource AncestorType=Window}"/>
                                                 </MultiBinding>
                                             </Setter.Value>
                                         </Setter>

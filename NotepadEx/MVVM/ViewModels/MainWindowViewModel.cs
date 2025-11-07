@@ -77,13 +77,9 @@ namespace NotepadEx.MVVM.ViewModels
             document = new Document();
             this.textEditor.TextArea.Caret.PositionChanged += Caret_PositionChanged;
 
-            // ** THIS IS THE FIX **
-            // Manually construct the syntax highlighting list with sorting and a "None" option.
             var sortedHighlightings = HighlightingManager.Instance.HighlightingDefinitions
                 .OrderBy(h => h.Name).ToList();
 
-            // AvalonEdit uses a null definition for plain text. We create a placeholder for the menu.
-            // Using a simple custom class makes the XAML binding work cleanly.
             var plainTextHighlighting = new PlainTextHighlightingDefinition();
             sortedHighlightings.Insert(0, plainTextHighlighting);
 
@@ -96,10 +92,12 @@ namespace NotepadEx.MVVM.ViewModels
             IsWordWrapEnabled = Settings.Default.TextWrapping;
             ShowLineNumbers = Settings.Default.ShowLineNumbers;
 
-            // Set the default highlighting
             var savedHighlightingName = Settings.Default.SyntaxHighlightingName;
-            CurrentSyntaxHighlighting = HighlightingManager.Instance.GetDefinition(savedHighlightingName)
-                                        ?? (savedHighlightingName == "Plain Text" ? null : HighlightingManager.Instance.GetDefinition("C#"));
+            if(string.IsNullOrEmpty(savedHighlightingName))
+            {
+                savedHighlightingName = "None / Plain Text";
+            }
+            CurrentSyntaxHighlighting = AvailableSyntaxHighlightings.FirstOrDefault(h => h.Name.Equals(savedHighlightingName, StringComparison.OrdinalIgnoreCase));
 
             this.themeService.LoadCurrentTheme();
             UpdateRecentFilesMenu();
@@ -151,19 +149,15 @@ namespace NotepadEx.MVVM.ViewModels
             }
             catch(Exception ex)
             {
-                // ** THIS IS THE FIX **
-                // Check if the error was because the file is missing.
                 if(ex is FileNotFoundException || ex is DirectoryNotFoundException)
                 {
                     windowService.ShowDialog($"The file could not be found:\n{filePath}\n\nIt will be removed from the recent files list.", "File Not Found");
 
-                    // Atomically remove the bad entry and refresh the UI.
                     RecentFileManager.RemoveFile(filePath);
                     UpdateRecentFilesMenu();
                 }
                 else
                 {
-                    // For any other error, show a generic message.
                     windowService.ShowDialog($"Error loading file: {ex.Message}", "Error");
                 }
             }
@@ -203,7 +197,7 @@ namespace NotepadEx.MVVM.ViewModels
             {
                 if(Settings.Default.ThemeName == value) return;
                 Settings.Default.ThemeName = value;
-                OnPropertyChanged(); // This will now be called correctly.
+                OnPropertyChanged();
             }
         }
 
@@ -211,14 +205,10 @@ namespace NotepadEx.MVVM.ViewModels
         {
             if(theme == null) return;
 
-            // ** THIS IS THE FIX **
-            // 1. Set the ViewModel's property FIRST. This triggers OnPropertyChanged and updates the UI (the checkmark).
             CurrentThemeName = theme.Name;
 
-            // 2. THEN, tell the service to apply the visual changes.
             themeService.ApplyTheme(theme.Name);
 
-            // 3. Update the theme editor window if it's open.
             themeService.AddEditableColorLinesToWindow();
         }
 
@@ -227,10 +217,7 @@ namespace NotepadEx.MVVM.ViewModels
             get => document.Content;
             set
             {
-                // ** FIX 1: The setter is now clean. Its only job is to set the value and notify. **
-                // The early exit is removed to ensure OnPropertyChanged ALWAYS fires.
                 document.Content = value;
-                // The responsibility of setting IsModified is moved to the actions that cause it.
                 OnPropertyChanged();
             }
         }
@@ -270,17 +257,15 @@ namespace NotepadEx.MVVM.ViewModels
             get => currentSyntaxHighlighting;
             set
             {
-                if(value is PlainTextHighlightingDefinition)
+                var newValue = (value is PlainTextHighlightingDefinition) ? null : value;
+                if(SetProperty(ref currentSyntaxHighlighting, newValue))
                 {
-                    SetProperty(ref currentSyntaxHighlighting, null);
-                }
-                else
-                {
-                    SetProperty(ref currentSyntaxHighlighting, value);
+                    OnPropertyChanged(nameof(CurrentSyntaxHighlightingName));
                 }
             }
         }
 
+        public string CurrentSyntaxHighlightingName => CurrentSyntaxHighlighting?.Name ?? "None / Plain Text";
 
         private void OnOpenThemeEditor() => themeService.OpenThemeEditor();
 
@@ -305,7 +290,7 @@ namespace NotepadEx.MVVM.ViewModels
             if(dialog.ShowDialog() != true) return;
 
             var fileInfo = new FileInfo(dialog.FileName);
-            if(fileInfo.Length > 20 * 1024 * 1024) // 20 MB warning threshold
+            if(fileInfo.Length > 20 * 1024 * 1024)
             {
                 var proceed = windowService.ShowConfirmDialog("This file is very large and may cause performance issues. Continue?", "Large File Warning");
                 if(!proceed) return;
@@ -358,7 +343,6 @@ namespace NotepadEx.MVVM.ViewModels
                     _ = SaveDocument();
                     return true;
                 case MessageBoxResult.No:
-                    // ** FIX 2: Explicitly mark changes as discarded. **
                     document.IsModified = false;
                     return true;
                 case MessageBoxResult.Cancel:
@@ -377,7 +361,6 @@ namespace NotepadEx.MVVM.ViewModels
 
             try
             {
-                // User-driven text change happens via binding. Here we just set content before saving.
                 document.Content = textEditor.Document.Text;
                 await documentService.SaveDocumentAsync(document);
                 document.IsModified = false;
@@ -408,15 +391,13 @@ namespace NotepadEx.MVVM.ViewModels
         private void Cut() => textEditor.Cut();
         private void Paste() => textEditor.Paste();
 
-      
         private void NewDocument()
         {
             if(!PromptToSaveChanges()) return;
 
-            // ** FIX 4: Simplified and explicit state control. **
             document.FilePath = string.Empty;
-            DocumentContent = string.Empty; // This clears the UI
-            document.IsModified = false;    // Explicitly set state to unmodified
+            DocumentContent = string.Empty;
+            document.IsModified = false;
 
             UpdateTitle();
             UpdateStatusBar();
