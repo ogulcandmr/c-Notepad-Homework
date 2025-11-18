@@ -57,6 +57,7 @@ namespace NotepadEx
 
         private void ApplyAvalonEditTheme()
         {
+            // tamamla
             textEditor.TextArea.SelectionBrush = (Brush)FindResource("Color_TextEditorTextHighlight");
             textEditor.TextArea.Caret.CaretBrush = (Brush)FindResource("Color_TextEditorCaret");
         }
