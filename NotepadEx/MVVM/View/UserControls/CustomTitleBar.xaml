@@ -1,0 +1,78 @@
+﻿<UserControl x:Class="NotepadEx.MVVM.View.UserControls.CustomTitleBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:NotepadEx.MVVM.View.UserControls"
+             xmlns:converters="clr-namespace:NotepadEx.Converters"
+             xmlns:behaviors="clr-namespace:NotepadEx.MVVM.Behaviors"
+             mc:Ignorable="d" 
+             d:DesignHeight="24" d:DesignWidth="800">
+    <Grid>
+        <Grid.Resources>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+            <converters:BooleanToIconConverter x:Key="BooleanToIconConverter" />
+        </Grid.Resources>
+        <Grid Background="{DynamicResource Color_TitleBarBg}">
+
+            <!-- CORRECTED: Column definitions to prevent overlap -->
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="auto"/>
+                <!-- Icon -->
+                <ColumnDefinition Width="*"/>
+                <!-- Title Text (stretchy) -->
+                <ColumnDefinition Width="auto"/>
+                <!-- Minimize Button -->
+                <ColumnDefinition Width="auto"/>
+                <!-- Maximize Button -->
+                <ColumnDefinition Width="auto"/>
+                <!-- Close Button -->
+            </Grid.ColumnDefinitions>
+
+            <!-- MOVED to Grid.Column="0". IsHitTestVisible="False" is kept as a safeguard. -->
+            <Image Grid.Column="0" Height="15" Margin="6,0,4,0" Source="{Binding IconImage}" IsHitTestVisible="False"/>
+
+            <!-- MOVED to Grid.Column="1". IsHitTestVisible="False" is kept as a safeguard. -->
+            <TextBlock Grid.Column="1" 
+                 Text="{Binding TitleText}" 
+                 Foreground="{DynamicResource Color_TitleBarFont}" 
+                 FontFamily="Arial" 
+                 FontWeight="ExtraLight" 
+                 FontSize="15"  
+                 VerticalAlignment="Center"
+                 IsHitTestVisible="False"/>
+
+            <!-- MOVED to Grid.Column="2" -->
+            <Button Grid.Column="2" 
+                    Command="{Binding MinimizeCommand}"
+                    Visibility="{Binding ShowMinimizeButton, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Background="Transparent" 
+                    BorderThickness="0" 
+                    Foreground="{DynamicResource Color_SystemButtons}" 
+                    Content="_" 
+                    FontFamily="Verdana" 
+                    Width="30"/>
+
+            <!-- MOVED to Grid.Column="3" -->
+            <Button Grid.Column="3" 
+                    Command="{Binding MaximizeCommand}"
+                    Visibility="{Binding ShowMaximizeButton, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Background="Transparent" 
+                    BorderThickness="0" 
+                    Foreground="{DynamicResource Color_SystemButtons}" 
+                    Content="{Binding IsMaximized, Converter={StaticResource BooleanToIconConverter}}"  
+                    Width="30" FontFamily="Verdana"/>
+
+            <!-- MOVED to Grid.Column="4" -->
+            <Button Grid.Column="4" 
+                    Command="{Binding CloseCommand}"
+                    Visibility="{Binding ShowCloseButton, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Background="Transparent" 
+                    BorderThickness="0" 
+                    Foreground="{DynamicResource Color_SystemButtons}" 
+                    Content="X" 
+                    FontFamily="Verdana" 
+                    Width="30"/>
+        </Grid>
+    </Grid>
+</UserControl>
